@@ -161,6 +161,11 @@ pass inline code on standard input, and parse its output. Running the process go
 `nickel/runner.Runner`, which you can replace with `context.with_runner`, to run Nickel in a
 container, through `nix run`, or to stub it in tests.
 
+## Related
+
+`docs/handoff-gleam-nickel-embedded.md` describes a planned companion package that embeds
+the Nickel interpreter instead of running the CLI, and the trade-offs between the two.
+
 ## Development
 
 With [Nix](https://nixos.org) (flakes enabled), the repository provides everything:
