@@ -1,0 +1,25 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          gleam-version: "1.15.2"
+          rebar3-version: "3"
+      - name: Install Nickel
+        run: |
+          curl -sSfL -o nickel https://github.com/tweag/nickel/releases/download/1.14.0/nickel-x86_64-linux
+          chmod +x nickel
+          sudo mv nickel /usr/local/bin/nickel
+          nickel --version
+      - run: gleam deps download
+      - run: gleam format --check src test
+      - run: gleam test
