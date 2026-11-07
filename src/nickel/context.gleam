@@ -155,7 +155,10 @@ pub fn add_import_path(context: Context, directory: String) -> Context {
 }
 
 /// Replaces the list of import paths.
-pub fn with_import_paths(context: Context, directories: List(String)) -> Context {
+pub fn with_import_paths(
+  context: Context,
+  directories: List(String),
+) -> Context {
   Context(..context, import_paths: directories)
 }
 

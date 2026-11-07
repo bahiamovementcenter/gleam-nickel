@@ -63,7 +63,10 @@ pub fn base_directory(context: Context) -> String {
 /// The directories searched, in order, for an import made from a file in
 /// `importer_directory` (an import from inline code uses the working
 /// directory).
-pub fn search_path(context: Context, importer_directory: String) -> List(String) {
+pub fn search_path(
+  context: Context,
+  importer_directory: String,
+) -> List(String) {
   let base = base_directory(context)
   let configured = context.import_paths(context) |> list.map(absolute(_, base))
   let from_env =
@@ -198,7 +201,11 @@ fn is_nickel_file(path: String) -> Bool {
 
 // --- Lexical scanner -------------------------------------------------------
 
-fn do_scan(input: String, after_import: Bool, acc: List(Import)) -> List(Import) {
+fn do_scan(
+  input: String,
+  after_import: Bool,
+  acc: List(Import),
+) -> List(Import) {
   case input {
     "" -> acc
     "#" <> rest -> do_scan(skip_line(rest), after_import, acc)

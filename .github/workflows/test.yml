@@ -12,7 +12,7 @@ jobs:
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "27"
-          gleam-version: "1.15.2"
+          gleam-version: "1.19.2"
           rebar3-version: "3"
       - name: Install Nickel
         run: |
@@ -23,3 +23,10 @@ jobs:
       - run: gleam deps download
       - run: gleam format --check src test
       - run: gleam test
+
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - run: nix flake check -L

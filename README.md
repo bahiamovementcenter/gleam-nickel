@@ -163,6 +163,18 @@ container, through `nix run`, or to stub it in tests.
 
 ## Development
 
+With [Nix](https://nixos.org) (flakes enabled), the repository provides everything:
+
 ```sh
-gleam test   # requires `nickel` on the PATH
+nix develop          # shell with Gleam, Erlang/OTP 27 and Nickel
+gleam test
+
+nix flake check      # format check + full test suite in the Nix sandbox
+nix fmt              # format flake.nix
 ```
+
+Without Nix, install Gleam, Erlang/OTP 27+ and `nickel`, then run `gleam test`.
+
+The flake's checks fetch the Hex dependencies pinned in `manifest.toml` through Nix, so
+they run offline. After changing dependencies, `gleam deps download` updates
+`manifest.toml` and the checks pick up the new versions automatically.
