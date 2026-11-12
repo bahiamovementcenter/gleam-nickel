@@ -24,6 +24,36 @@ jobs:
       - run: gleam format --check src test
       - run: gleam test
 
+  # The suite again on the native backend, with the library built from the
+  # rust-nickel commit that flake.lock pins.
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: rust-nickel
+        run: echo "rev=$(jq -r '.nodes."rust-nickel".locked.rev' flake.lock)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: bahiamovementcenter/rust-nickel
+          ref: ${{ steps.rust-nickel.outputs.rev }}
+          path: rust-nickel
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-nickel
+      - run: cargo build --release -p nickel-embed-nif
+        working-directory: rust-nickel
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          gleam-version: "1.19.2"
+          rebar3-version: "3"
+      - run: gleam deps download
+      - run: gleam test
+        env:
+          NICKEL_EMBED_NIF: ${{ github.workspace }}/rust-nickel/target/release/libnickel_embed_nif
+          NICKEL_TEST_BACKEND: native
+
   nix:
     runs-on: ubuntu-latest
     steps:

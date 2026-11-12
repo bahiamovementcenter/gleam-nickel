@@ -1,5 +1,14 @@
 # Handoff: gleam-nickel-embedded
 
+> **Status, 2026-11-12:** done differently. Instead of a separate package, this package
+> gained a native backend (`context.with_backend(context.Native)`, `nickel/native`) and a
+> lazy API (`nickel/lazy`), built on the `nickel-embed-nif` crate in
+> [rust-nickel](https://github.com/bahiamovementcenter/rust-nickel). It answers section 4.3
+> with option 2 (a thread per program, with messages), builds on `nickel-embed` rather than
+> `nickel-lang`, so typechecking, contract files, overrides, field focus and `query` work
+> natively too, and loads the library from `NICKEL_EMBED_NIF` or `priv/` (distribution,
+> section 4.1, is still open). The rest of this document is kept for its analysis.
+
 This document is for whoever starts a new repository, `gleam-nickel-embedded`, which
 embeds the Nickel interpreter in Gleam applications on the Erlang VM. Nickel's own Go
 bindings ([nickel-lang/go-nickel](https://github.com/nickel-lang/go-nickel)) take the same

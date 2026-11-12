@@ -20,8 +20,32 @@ pub fn main() -> Nil {
   gleeunit.main()
 }
 
+/// The suite runs against the command line backend, or against the native
+/// one when `NICKEL_TEST_BACKEND=native` (CI runs both).
+fn new_context() -> context.Context {
+  case native() {
+    True -> context.new() |> context.with_backend(context.Native)
+    False -> context.new()
+  }
+}
+
+fn native() -> Bool {
+  getenv("NICKEL_TEST_BACKEND") == Ok("native")
+}
+
+/// Skips a test that is about running the `nickel` executable.
+fn cli_only(test_body: fn() -> Nil) -> Nil {
+  case native() {
+    True -> Nil
+    False -> test_body()
+  }
+}
+
+@external(erlang, "nickel_ffi", "getenv")
+fn getenv(name: String) -> Result(String, Nil)
+
 fn fixtures() -> context.Context {
-  context.new()
+  new_context()
   |> context.with_working_directory("test/fixtures")
   |> context.add_import_path("lib")
 }
@@ -31,7 +55,7 @@ fn fixtures() -> context.Context {
 pub fn eval_code_test() {
   let assert Ok(result) =
     nickel.eval(
-      context.new(),
+      new_context(),
       source.code(
         "{ a = 1 + 2, b = [true, null, \"x\"], c = 1.5, d = { e = 'tag } }",
       ),
@@ -47,7 +71,7 @@ pub fn eval_code_test() {
 
 pub fn eval_big_integer_test() {
   let assert Ok(value.Int(n)) =
-    nickel.eval(context.new(), source.code("12345678901234567890 * 1"))
+    nickel.eval(new_context(), source.code("12345678901234567890 * 1"))
   assert n == 12_345_678_901_234_567_890
 }
 
@@ -95,7 +119,7 @@ pub fn eval_as_test() {
 
 pub fn eval_as_decode_error_test() {
   let assert Error(error.DecodeError(errors)) =
-    nickel.eval_as(context.new(), source.code("{ port = \"x\" }"), {
+    nickel.eval_as(new_context(), source.code("{ port = \"x\" }"), {
       use port <- decode.field("port", decode.int)
       decode.success(port)
     })
@@ -117,12 +141,12 @@ pub fn value_decode_test() {
 
 pub fn export_formats_test() {
   let program = source.code("{ name = \"demo\", replicas = 3 }")
-  let assert Ok(yaml) = nickel.export(context.new(), program, nickel.Yaml)
+  let assert Ok(yaml) = nickel.export(new_context(), program, nickel.Yaml)
   assert string.contains(yaml, "name: demo")
-  let assert Ok(toml) = nickel.export(context.new(), program, nickel.Toml)
+  let assert Ok(toml) = nickel.export(new_context(), program, nickel.Toml)
   assert string.contains(toml, "replicas = 3")
   let assert Ok(text) =
-    nickel.export(context.new(), source.code("\"a\" ++ \"b\""), nickel.Text)
+    nickel.export(new_context(), source.code("\"a\" ++ \"b\""), nickel.Text)
   assert text == "ab"
 }
 
@@ -159,7 +183,7 @@ pub fn assign_code_test() {
 
 pub fn override_test() {
   let ctx =
-    context.new()
+    new_context()
     |> context.override(["name"], value.String("with \"quotes\" and %{braces}"))
   assert nickel.eval(ctx, source.code("{ name = \"fixed\" }"))
     == Ok(
@@ -175,7 +199,7 @@ pub fn assignment_violating_contract_test() {
 
 pub fn later_assignment_replaces_earlier_test() {
   let ctx =
-    context.new()
+    new_context()
     |> context.assign(["a"], value.Int(1))
     |> context.assign(["a"], value.Int(2))
   assert list.length(context.assignments(ctx)) == 1
@@ -185,7 +209,7 @@ pub fn later_assignment_replaces_earlier_test() {
 
 pub fn environment_import_path_test() {
   let ctx =
-    context.new()
+    new_context()
     |> context.with_working_directory("test/fixtures")
     |> context.set_env("NICKEL_IMPORT_PATH", "lib/sub")
   assert nickel.eval(ctx, source.code("(import \"helper.ncl\").name"))
@@ -213,7 +237,7 @@ pub fn validate_with_inline_contract_test() {
   let schema = contract.code("{ port | std.number.PosNat, host | String }")
   let assert Ok(_) =
     nickel.validate(
-      context.new(),
+      new_context(),
       source.code("{ port = 80, host = \"x\" }"),
       schema,
     )
@@ -223,7 +247,7 @@ pub fn validate_with_inline_contract_test() {
     rendered:,
   )) =
     nickel.validate(
-      context.new(),
+      new_context(),
       source.code("{ port = 0, host = \"x\" }"),
       schema,
     )
@@ -233,7 +257,7 @@ pub fn validate_with_inline_contract_test() {
 
 pub fn inline_contract_can_import_test() {
   let schema = contract.code("import \"schema.ncl\"")
-  let ctx = context.new() |> context.with_working_directory("test/fixtures")
+  let ctx = new_context() |> context.with_working_directory("test/fixtures")
   let assert Ok(_) =
     nickel.validate(
       ctx,
@@ -248,7 +272,7 @@ pub fn validate_value_test() {
       "{ port | std.number.PosNat, host | String | default = \"localhost\" }",
     )
   assert nickel.validate_value(
-      context.new(),
+      new_context(),
       value.record([#("port", value.Int(80))]),
       schema,
     )
@@ -260,14 +284,14 @@ pub fn validate_value_test() {
     )
   let assert Error(error.NickelError(kind: error.ContractViolation, ..)) =
     nickel.validate_value(
-      context.new(),
+      new_context(),
       value.record([#("port", value.Int(-3))]),
       schema,
     )
 }
 
 pub fn context_contracts_apply_to_every_call_test() {
-  let ctx = context.new() |> context.apply_contract(contract.code("Number"))
+  let ctx = new_context() |> context.apply_contract(contract.code("Number"))
   let assert Ok(value.Int(1)) = nickel.eval(ctx, source.code("1"))
   let assert Error(error.NickelError(kind: error.ContractViolation, ..)) =
     nickel.eval(ctx, source.code("\"one\""))
@@ -278,17 +302,17 @@ pub fn context_contracts_apply_to_every_call_test() {
 // --- Parsing and typechecking ----------------------------------------------
 
 pub fn parse_test() {
-  assert nickel.parse(context.new(), source.code("{ a = undefined_name }"))
+  assert nickel.parse(new_context(), source.code("{ a = undefined_name }"))
     == Ok(Nil)
   let assert Error(error.NickelError(kind: error.ParseError, ..)) =
-    nickel.parse(context.new(), source.code("{ a = 1 + }"))
+    nickel.parse(new_context(), source.code("{ a = 1 + }"))
 }
 
 pub fn typecheck_test() {
-  assert nickel.typecheck(context.new(), source.code("{ a : Number = 1 }"))
+  assert nickel.typecheck(new_context(), source.code("{ a : Number = 1 }"))
     == Ok(Nil)
   let assert Error(error.NickelError(kind: error.TypeError, ..)) =
-    nickel.typecheck(context.new(), source.code("{ a : Number = \"x\" }"))
+    nickel.typecheck(new_context(), source.code("{ a : Number = \"x\" }"))
 }
 
 // --- Errors -----------------------------------------------------------------
@@ -304,47 +328,48 @@ pub fn parse_error_test() {
       ),
     ],
     rendered:,
-  )) = nickel.eval(context.new(), source.code("{ a = 1 + }"))
+  )) = nickel.eval(new_context(), source.code("{ a = 1 + }"))
   assert string.contains(rendered, "<stdin>")
 }
 
 pub fn missing_import_error_test() {
   let assert Error(error.NickelError(kind: error.ImportError, ..)) =
-    nickel.eval(context.new(), source.code("import \"does-not-exist.ncl\""))
+    nickel.eval(new_context(), source.code("import \"does-not-exist.ncl\""))
 }
 
 pub fn evaluation_error_test() {
   let assert Error(err) =
-    nickel.eval(context.new(), source.code("{ a = 1 + \"x\" }"))
+    nickel.eval(new_context(), source.code("{ a = 1 + \"x\" }"))
   let assert error.NickelError(kind: error.EvaluationError, ..) = err
   assert error.messages(err) == ["dynamic type error"]
 }
 
 pub fn unbound_identifier_error_test() {
   let assert Error(error.NickelError(kind: error.UnboundIdentifier, ..)) =
-    nickel.eval(context.new(), source.code("{ a = b }"))
+    nickel.eval(new_context(), source.code("{ a = b }"))
 }
 
 pub fn serialization_error_test() {
   let assert Error(error.NickelError(kind: error.SerializationError, ..)) =
-    nickel.eval(context.new(), source.code("{ f = fun x => x }"))
+    nickel.eval(new_context(), source.code("{ f = fun x => x }"))
 }
 
 pub fn missing_field_error_test() {
-  let ctx = context.new() |> context.focus(["nope"])
+  let ctx = new_context() |> context.focus(["nope"])
   let assert Error(error.NickelError(kind: error.MissingField, ..)) =
     nickel.eval(ctx, source.code("{ a = 1 }"))
 }
 
 pub fn unrendered_errors_test() {
-  let ctx = context.new() |> context.with_rendered_errors(False)
+  let ctx = new_context() |> context.with_rendered_errors(False)
   let assert Error(err) = nickel.eval(ctx, source.code("{ a = 1 + }"))
   let assert error.NickelError(rendered: "", ..) = err
   assert string.starts_with(error.describe(err), "error: unexpected token")
 }
 
 pub fn executable_not_found_test() {
-  let ctx = context.new() |> context.with_executable("nickel-does-not-exist")
+  use <- cli_only
+  let ctx = new_context() |> context.with_executable("nickel-does-not-exist")
   assert nickel.eval(ctx, source.code("1"))
     == Error(
       error.ProcessError(runner.ExecutableNotFound("nickel-does-not-exist")),
@@ -352,19 +377,20 @@ pub fn executable_not_found_test() {
 }
 
 pub fn timeout_test() {
-  let ctx = context.new() |> context.with_timeout(300)
+  let ctx = new_context() |> context.with_timeout(300)
   let program = "let rec loop = fun x => loop (x + 1) in loop 0"
   assert nickel.eval(ctx, source.code(program))
     == Error(error.ProcessError(runner.TimedOut(300)))
 }
 
 pub fn custom_runner_test() {
+  use <- cli_only
   let fake = fn(command: runner.Command) {
     let assert ["export", ..] = command.arguments
     let assert Some("anything") = command.stdin
     Ok(runner.Output(exit_code: 0, stdout: "{\"stub\": true}", stderr: ""))
   }
-  let ctx = context.new() |> context.with_runner(fake)
+  let ctx = new_context() |> context.with_runner(fake)
   assert nickel.eval(ctx, source.code("anything"))
     == Ok(value.record([#("stub", value.Bool(True))]))
 }
@@ -385,7 +411,7 @@ pub fn query_test() {
 
 pub fn query_type_test() {
   let assert Ok(meta) =
-    nickel.query(context.new(), source.code("{ a : Number | force = 1 }"), [
+    nickel.query(new_context(), source.code("{ a : Number | force = 1 }"), [
       "a",
     ])
   assert meta.type_annotation == Some("Number")
@@ -393,7 +419,7 @@ pub fn query_type_test() {
 }
 
 pub fn version_test() {
-  let assert Ok(version) = nickel.version(context.new())
+  let assert Ok(version) = nickel.version(new_context())
   let assert [_, _, _] = string.split(version, ".")
 }
 
@@ -445,7 +471,7 @@ pub fn dependencies_test() {
 
 pub fn dependencies_missing_test() {
   let assert Error(imports.NotFound(name: "missing.ncl", ..)) =
-    imports.dependencies(context.new(), source.code("import \"missing.ncl\""))
+    imports.dependencies(new_context(), source.code("import \"missing.ncl\""))
 }
 
 pub fn normalize_test() {
@@ -465,7 +491,17 @@ pub fn value_round_trip_through_nickel_test() {
       #("list", value.Array([value.Null, value.Bool(False), value.record([])])),
       #("unicode", value.String("héllo ✓\n")),
     ])
-  assert nickel.eval(context.new(), source.from_value(original)) == Ok(original)
+  let expected = case native() {
+    // The native backend keeps whole numbers exact, where `nickel export`
+    // turns those beyond 64 bits into floats.
+    True ->
+      value.merge(
+        original,
+        value.record([#("big", value.Int(100_000_000_000_000_000_000))]),
+      )
+    False -> original
+  }
+  assert nickel.eval(new_context(), source.from_value(original)) == Ok(expected)
 }
 
 pub fn value_json_test() {

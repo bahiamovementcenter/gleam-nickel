@@ -22,9 +22,12 @@
 //// }
 //// ```
 ////
-//// The bindings drive the `nickel` command line program, which must be
-//// installed (version 1.5 or later; tested with 1.14).
+//// By default the bindings drive the `nickel` command line program, which
+//// must be installed (version 1.5 or later; tested with 1.14). With
+//// `context.with_backend(context.Native)` they run Nickel inside the VM
+//// instead: see `nickel/native`.
 
+import gleam/bool
 import gleam/dynamic/decode
 import gleam/json
 import gleam/list
@@ -35,6 +38,7 @@ import nickel/context.{type Context}
 import nickel/contract.{type Contract}
 import nickel/error.{type Error}
 import nickel/metadata.{type FieldMetadata}
+import nickel/native
 import nickel/runner
 import nickel/source.{type Source}
 import nickel/syntax
@@ -54,6 +58,9 @@ pub type Format {
 /// Checks that a program is syntactically valid, without evaluating or
 /// typechecking it. Imports are not followed.
 pub fn parse(context: Context, program: Source) -> Result(Nil, Error) {
+  use <- native_or_cli(context, program, no_parts(), fn(session) {
+    native.call_nil(context, session, native.Parse)
+  })
   invoke(
     context,
     program,
@@ -76,6 +83,9 @@ pub fn parse(context: Context, program: Source) -> Result(Nil, Error) {
 /// The result must be serializable: functions are not, and fields marked
 /// `not_exported` are left out.
 pub fn eval(context: Context, program: Source) -> Result(Value, Error) {
+  use <- native_or_cli(context, program, export_parts(context), fn(session) {
+    native.call_value(context, session, native.EvalValue)
+  })
   use output <- result.try(export(context, program, Json))
   value.from_json(output)
   |> result.map_error(fn(e) { json_error(e, output) })
@@ -101,6 +111,10 @@ pub fn eval_as(
   program: Source,
   decoder: decode.Decoder(a),
 ) -> Result(a, Error) {
+  use <- native_or_cli(context, program, export_parts(context), fn(session) {
+    use data <- result.try(native.call_value(context, session, native.EvalValue))
+    value.decode(data, decoder) |> result.map_error(error.DecodeError)
+  })
   use output <- result.try(export(context, program, Json))
   json.parse(output, decoder)
   |> result.map_error(fn(e) { json_error(e, output) })
@@ -112,6 +126,15 @@ pub fn export(
   program: Source,
   format: Format,
 ) -> Result(String, Error) {
+  use <- native_or_cli(context, program, export_parts(context), fn(session) {
+    let format = case format {
+      Json -> native.Json
+      Yaml -> native.Yaml
+      Toml -> native.Toml
+      Text -> native.Text
+    }
+    native.call_string(context, session, native.Export(format))
+  })
   let format = case format {
     Json -> "json"
     Yaml -> "yaml"
@@ -136,6 +159,12 @@ pub fn export(
 /// Typechecks a program without evaluating it. Contracts of the context are
 /// typechecked too.
 pub fn typecheck(context: Context, program: Source) -> Result(Nil, Error) {
+  let parts =
+    native.Parts(contracts: True, assignments: False, field: [], trace: False)
+  use <- native_or_cli(context, program, parts, fn(session) {
+    let strict = context.strict_typechecking(context)
+    native.call_nil(context, session, native.Typecheck(strict))
+  })
   invoke(
     context,
     program,
@@ -205,6 +234,16 @@ pub fn query(
   path: List(String),
 ) -> Result(FieldMetadata, Error) {
   let full_path = list.append(context.field(context), path)
+  let parts =
+    native.Parts(
+      contracts: True,
+      assignments: False,
+      field: full_path,
+      trace: False,
+    )
+  use <- native_or_cli(context, program, parts, fn(session) {
+    native.call_metadata(context, session, native.Query)
+  })
   use output <- result.try(invoke(
     context,
     program,
@@ -225,8 +264,14 @@ pub fn query(
 
 // --- Miscellaneous ---------------------------------------------------------
 
-/// The version of the Nickel executable, e.g. `"1.14.0"`.
+/// The version of the Nickel executable, e.g. `"1.14.0"`. With the native
+/// backend, the version of the `nickel-lang-core` library linked in, e.g.
+/// `"0.19.0"`.
 pub fn version(context: Context) -> Result(String, Error) {
+  use <- bool.lazy_guard(
+    context.backend(context) == context.Native,
+    native.core_version,
+  )
   use output <- result.try(
     run(context, ["--version"], None) |> result.map_error(error.ProcessError),
   )
@@ -253,6 +298,40 @@ pub fn version(context: Context) -> Result(String, Error) {
         output.stdout <> output.stderr,
       ))
   }
+}
+
+// --- Backends --------------------------------------------------------------
+
+/// Runs `native_body` in a native session when the context selects the
+/// native backend, and `cli_body` otherwise.
+fn native_or_cli(
+  context: Context,
+  program: Source,
+  parts: native.Parts,
+  native_body: fn(native.Session) -> Result(a, Error),
+  cli_body: fn() -> Result(a, Error),
+) -> Result(a, Error) {
+  case context.backend(context) {
+    context.Cli -> cli_body()
+    context.Native -> {
+      use session <- result.try(native.start(context, program, parts))
+      native_body(session)
+    }
+  }
+}
+
+fn no_parts() -> native.Parts {
+  native.Parts(contracts: False, assignments: False, field: [], trace: False)
+}
+
+/// What `nickel export` uses: contracts, assignments and the focused field.
+fn export_parts(context: Context) -> native.Parts {
+  native.Parts(
+    contracts: True,
+    assignments: True,
+    field: context.field(context),
+    trace: False,
+  )
 }
 
 // --- Invocation ------------------------------------------------------------
