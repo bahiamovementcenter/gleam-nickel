@@ -23,7 +23,9 @@
 ////   error) stops the whole VM, so don't evaluate untrusted configurations.
 //// - A timed out call returns an error, but the evaluation keeps running on
 ////   its thread until it ends.
-//// - Package manifests (`context.with_manifest_path`) are not supported.
+//// - Package manifests (`context.with_manifest_path`) always work: the
+////   library includes Nickel's package manager, which released `nickel`
+////   executables leave out.
 //// - `nickel.version` returns the version of `nickel-lang-core` linked in,
 ////   not of a Nickel release.
 
@@ -87,6 +89,8 @@ pub type Options {
     overrides: List(Override),
     field: List(String),
     trace: Bool,
+    manifest: Option(String),
+    package_cache_dir: Option(String),
   )
 }
 
@@ -192,7 +196,6 @@ pub fn start(
   program: Source,
   parts: Parts,
 ) -> Result(Session, Error) {
-  use <- reject_manifest(context)
   let render = context.render_errors(context)
   use session <- result.try(
     ffi_new_session() |> result.map_error(to_error(_, render)),
@@ -246,22 +249,11 @@ pub fn start(
       },
       field: parts.field,
       trace: parts.trace,
+      manifest: option.map(context.manifest_path(context), resolve),
+      package_cache_dir: option.map(context.package_cache_dir(context), resolve),
     )
   use Nil <- result.map(call_nil(context, session, Build(options)))
   session
-}
-
-fn reject_manifest(
-  context: Context,
-  next: fn() -> Result(a, Error),
-) -> Result(a, Error) {
-  case context.manifest_path(context) {
-    Some(_) ->
-      Error(error.NativeError(
-        "package manifests (context.with_manifest_path) need the Cli backend",
-      ))
-    None -> next()
-  }
 }
 
 fn is_file_contract(contract: contract.Contract) -> Bool {

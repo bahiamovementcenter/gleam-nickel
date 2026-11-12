@@ -373,6 +373,10 @@ fn invoke(
         Some(path) -> ["--manifest-path", path]
         None -> []
       },
+      case context.package_cache_dir(context) {
+        Some(path) -> ["--package-cache-dir", path]
+        None -> []
+      },
       list.flat_map(contract_files, fn(p) { ["--apply-contract", p] }),
       case invocation.field, context.field(context) {
         True, [_, ..] as path -> ["--field", syntax.field_path(path)]
