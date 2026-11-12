@@ -42,7 +42,22 @@ pub opaque type Context {
     render_errors: Bool,
     manifest_path: Option(String),
     strict_typechecking: Bool,
+    backend: Backend,
   )
+}
+
+/// How Nickel is run.
+pub type Backend {
+  /// Run the `nickel` command line program for every call (the default).
+  /// Isolated from the VM and can be timed out, but each call starts a
+  /// process.
+  Cli
+  /// Run Nickel inside the VM, through the `nickel_embed_nif` native library
+  /// (see `nickel/native`). Much faster per call and needs no `nickel`
+  /// executable, but a crash in native code stops the VM, a timed out
+  /// evaluation keeps running in the background, and package manifests are
+  /// not supported.
+  Native
 }
 
 /// A value injected into the program through Nickel's customize mode.
@@ -71,7 +86,20 @@ pub fn new() -> Context {
     render_errors: True,
     manifest_path: None,
     strict_typechecking: False,
+    backend: Cli,
   )
+}
+
+// --- Backend ---------------------------------------------------------------
+
+/// Chooses how Nickel is run. Settings that only make sense for one backend
+/// (the executable and runner for `Cli`) are ignored by the other.
+pub fn with_backend(context: Context, backend: Backend) -> Context {
+  Context(..context, backend:)
+}
+
+pub fn backend(context: Context) -> Backend {
+  context.backend
 }
 
 // --- Process ---------------------------------------------------------------
@@ -111,6 +139,10 @@ pub fn environment(context: Context) -> List(#(String, String)) {
 }
 
 /// Kills Nickel if a single call takes longer than this many milliseconds.
+///
+/// With the `Native` backend, a call that times out returns the same error,
+/// but the evaluation can't be interrupted: it keeps a thread busy until it
+/// ends.
 pub fn with_timeout(context: Context, milliseconds: Int) -> Context {
   Context(..context, timeout: Some(milliseconds))
 }

@@ -3,10 +3,19 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # The native backend's library (nickel-embed-nif).
+    rust-nickel = {
+      url = "github:bahiamovementcenter/rust-nickel/main";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      rust-nickel,
+    }:
     let
       systems = [
         "x86_64-linux"
@@ -15,6 +24,17 @@
         "aarch64-darwin"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+
+      # The native library, where rust-nickel builds it (not x86_64-darwin).
+      nativeLibrary =
+        pkgs:
+        let
+          packages = rust-nickel.packages.${pkgs.stdenv.hostPlatform.system} or { };
+        in
+        if packages ? nickel-embed-nif then
+          "${packages.nickel-embed-nif}/lib/libnickel_embed_nif"
+        else
+          null;
 
       # Everything needed to build and test the library.
       toolchain = pkgs: [
@@ -68,29 +88,48 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = toolchain pkgs;
+          # Lets `gleam test` exercise the native backend too.
+          env = nixpkgs.lib.optionalAttrs (nativeLibrary pkgs != null) {
+            NICKEL_EMBED_NIF = nativeLibrary pkgs;
+          };
         };
       });
 
-      checks = forAllSystems (pkgs: {
-        # Runs the test suite against the Nickel version from nixpkgs.
-        test = pkgs.runCommand "gleam-nickel-test" { nativeBuildInputs = toolchain pkgs; } ''
-          cp -r ${source} source
-          chmod -R u+w source
-          cd source
-          mkdir -p build
-          cp -r ${hexPackages pkgs} build/packages
-          chmod -R u+w build
-          export HOME=$TMPDIR
-          gleam test
-          touch $out
-        '';
+      checks = forAllSystems (
+        pkgs:
+        let
+          gleamTest =
+            name: env:
+            pkgs.runCommand name ({ nativeBuildInputs = toolchain pkgs; } // env) ''
+              cp -r ${source} source
+              chmod -R u+w source
+              cd source
+              mkdir -p build
+              cp -r ${hexPackages pkgs} build/packages
+              chmod -R u+w build
+              export HOME=$TMPDIR
+              gleam test
+              touch $out
+            '';
+        in
+        {
+          # Runs the test suite against the Nickel version from nixpkgs.
+          test = gleamTest "gleam-nickel-test" { };
 
-        format = pkgs.runCommand "gleam-nickel-format" { nativeBuildInputs = [ pkgs.gleam ]; } ''
-          cd ${source}
-          gleam format --check src test
-          touch $out
-        '';
-      });
+          format = pkgs.runCommand "gleam-nickel-format" { nativeBuildInputs = [ pkgs.gleam ]; } ''
+            cd ${source}
+            gleam format --check src test
+            touch $out
+          '';
+        }
+        // nixpkgs.lib.optionalAttrs (nativeLibrary pkgs != null) {
+          # The same suite on the native backend, plus the native-only tests.
+          test-native = gleamTest "gleam-nickel-test-native" {
+            NICKEL_EMBED_NIF = nativeLibrary pkgs;
+            NICKEL_TEST_BACKEND = "native";
+          };
+        }
+      );
 
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
     };

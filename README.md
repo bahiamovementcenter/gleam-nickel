@@ -17,11 +17,63 @@ values, and report errors.
 | Configuration context | `nickel/context` (working directory, import paths, contracts, injected values, focus, timeout, runner) |
 | Field metadata | `nickel.query` (documentation, types, contracts, priorities) |
 
+## Backends
+
+By default every call runs the `nickel` command line program. The **native backend** runs
+Nickel inside the Erlang VM instead, through the `nickel_embed_nif` library built from
+[rust-nickel](https://github.com/bahiamovementcenter/rust-nickel):
+
+```sh
+git clone https://github.com/bahiamovementcenter/rust-nickel
+cd rust-nickel && cargo build --release -p nickel-embed-nif   # or: nix build .#nickel-embed-nif
+export NICKEL_EMBED_NIF=$PWD/target/release/libnickel_embed_nif.so
+```
+
+(On macOS, rename the `.dylib` Cargo builds to `.so`.) Then:
+
+```gleam
+let ctx = context.new() |> context.with_backend(context.Native)
+nickel.eval(ctx, source.file("server.ncl"))   // same API, no process per call
+```
+
+| | `Cli` (default) | `Native` |
+| --- | --- | --- |
+| Needs | the `nickel` executable | the `nickel_embed_nif` library |
+| Per call | ~20 ms (process start) | ~11 ms (loading Nickel's standard library) |
+| Whole numbers beyond 64 bits | become `Float` | stay exact `Int` |
+| A crash in Nickel | an error value | stops the VM (panics become errors) |
+| `context.with_timeout` | kills the process | returns an error; the evaluation runs on in the background |
+| Package manifests | yes | no |
+| Lazy evaluation (`nickel/lazy`) | no | yes |
+
+Timings are for a small program on Linux x86_64. The whole test suite runs against both
+backends in CI.
+
+### Lazy evaluation
+
+`nickel/lazy` evaluates a program only as far as you read it, like Nickel's Go bindings. A
+field you never read is never evaluated, so its errors and its cost don't matter:
+
+```gleam
+import nickel/lazy
+
+let assert Ok(program) = lazy.new(ctx, source.file("cluster.ncl"))
+let assert Ok(root) = lazy.eval_shallow(program)
+let assert Ok(port) = lazy.get(root, ["servers", "api", "port"])
+lazy.view(port)      // -> Ok(lazy.Number(8080, 1)): exact rationals
+lazy.to_value(root)  // -> evaluates everything into a `Value`
+```
+
+`lazy.view` shows one level of a value (`Record`, `Array`, `Number`, `EnumTag`,
+`EnumVariant`...), with nested values as further expressions. Reading from a loaded program
+takes about 0.1 ms.
+
 ## Requirements
 
 - Gleam 1.14 or later, Erlang target, Erlang/OTP 27 or later.
 - The [`nickel` command line program](https://nickel-lang.org/getting-started) (tested with
-  1.14), on the `PATH` or configured with `context.with_executable`.
+  1.14), on the `PATH` or configured with `context.with_executable`; or the native library
+  (see Backends).
 - A POSIX `sh` (Linux, macOS, BSD, WSL).
 
 ```sh

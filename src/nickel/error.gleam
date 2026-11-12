@@ -30,6 +30,10 @@ pub type Error {
   ProcessError(runner.RunError)
   /// A temporary file needed for the call could not be written.
   TemporaryFileError(reason: String)
+  /// The native backend could not do what was asked: its library is not
+  /// loaded, the feature needs the command line backend, or a value has no
+  /// Gleam representation. See `nickel/native`.
+  NativeError(reason: String)
 }
 
 /// A broad classification of Nickel errors.
@@ -237,6 +241,7 @@ pub fn describe(error: Error) -> String {
     UnexpectedOutput(reason:, ..) -> "unexpected output from nickel: " <> reason
     ProcessError(error) -> runner.describe_error(error)
     TemporaryFileError(reason) -> "could not write a temporary file: " <> reason
+    NativeError(reason) -> "native Nickel backend: " <> reason
   }
 }
 
