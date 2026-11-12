@@ -2,6 +2,7 @@
 //// numbers, enum values. Skipped when the native library isn't loaded, unless
 //// `NICKEL_EMBED_NIF` is set, in which case it must load.
 
+import gleam/dict
 import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/list
@@ -66,10 +67,37 @@ pub fn inline_contract_test() {
     nickel.eval(ctx, source.code("{ port = -1 }"))
 }
 
-pub fn manifest_needs_cli_test() {
+@external(erlang, "nickel_test_ffi", "package_fixture")
+fn package_fixture() -> String
+
+pub fn package_manifest_test() {
   use <- with_native
-  let ctx = native_context() |> context.with_manifest_path("Nickel-pkg.ncl")
-  let assert Error(error.NativeError(_)) = nickel.eval(ctx, source.code("1"))
+  let dir = package_fixture()
+  let ctx =
+    native_context()
+    |> context.with_working_directory(dir <> "/app")
+    |> context.with_manifest_path("Nickel-pkg.ncl")
+    |> context.with_package_cache_dir(dir <> "/cache")
+  assert nickel.eval(ctx, source.file("main.ncl"))
+    == Ok(value.Record(dict.from_list([#("answer", value.Int(42))])))
+  // In-memory code too.
+  assert nickel.eval(ctx, source.code("(import lib).value + 1"))
+    == Ok(value.Int(43))
+  // Without the manifest, `lib` is unknown.
+  let assert Error(error.NickelError(kind: error.ImportError, ..)) =
+    nickel.eval(
+      native_context() |> context.with_working_directory(dir <> "/app"),
+      source.file("main.ncl"),
+    )
+}
+
+pub fn bad_manifest_test() {
+  use <- with_native
+  let ctx =
+    native_context()
+    |> context.with_manifest_path(package_fixture() <> "/bad/Nickel-pkg.ncl")
+  let assert Error(error.NickelError(kind: error.PackageError, ..)) =
+    nickel.eval(ctx, source.code("1"))
 }
 
 fn one_to_fifty() -> List(Int) {

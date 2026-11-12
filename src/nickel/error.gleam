@@ -56,6 +56,9 @@ pub type ErrorKind {
   UnboundIdentifier
   /// The result cannot be serialized (functions, numbers out of range…).
   SerializationError
+  /// A package manifest couldn't be read, or its dependencies couldn't be
+  /// resolved or fetched.
+  PackageError
   /// Any other error that happened during evaluation.
   EvaluationError
 }
@@ -184,7 +187,14 @@ fn classify_message(diagnostic: Diagnostic) -> ErrorKind {
           || has("unmatched"),
         ParseError,
       )
-      use <- when(has("import of") || has("could not find import"), ImportError)
+      use <- when(
+        has("import of")
+          || has("could not find import")
+          || has("unknown package")
+          || has("no package manifest"),
+        ImportError,
+      )
+      use <- when(has("manifest") || has("package"), PackageError)
       use <- when(has("contract broken") || has("blame"), ContractViolation)
       use <- when(has("dynamic type error"), EvaluationError)
       use <- when(

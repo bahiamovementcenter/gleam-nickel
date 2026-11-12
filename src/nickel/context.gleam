@@ -41,6 +41,7 @@ pub opaque type Context {
     runner: Runner,
     render_errors: Bool,
     manifest_path: Option(String),
+    package_cache_dir: Option(String),
     strict_typechecking: Bool,
     backend: Backend,
   )
@@ -54,9 +55,8 @@ pub type Backend {
   Cli
   /// Run Nickel inside the VM, through the `nickel_embed_nif` native library
   /// (see `nickel/native`). Much faster per call and needs no `nickel`
-  /// executable, but a crash in native code stops the VM, a timed out
-  /// evaluation keeps running in the background, and package manifests are
-  /// not supported.
+  /// executable, but a crash in native code stops the VM and a timed out
+  /// evaluation keeps running in the background.
   Native
 }
 
@@ -85,6 +85,7 @@ pub fn new() -> Context {
     runner: runner.system(),
     render_errors: True,
     manifest_path: None,
+    package_cache_dir: None,
     strict_typechecking: False,
     backend: Cli,
   )
@@ -199,14 +200,35 @@ pub fn import_paths(context: Context) -> List(String) {
   context.import_paths
 }
 
-/// Uses a Nickel package manifest (`Nickel-pkg.ncl`) or its lock file to
-/// resolve package imports. Package management is experimental in Nickel.
+/// Resolves package imports (`import foo`) with the dependencies of a Nickel
+/// package manifest (`Nickel-pkg.ncl`). A relative path is resolved against
+/// the working directory.
+///
+/// Before evaluating, Nickel resolves the dependencies' versions, fetches git
+/// and index packages that aren't cached yet, and writes or updates
+/// `Nickel-pkg.lock` next to the manifest. Failures have the kind
+/// `error.PackageError`.
+///
+/// Package management is experimental in Nickel. The `Native` backend always
+/// supports it; with the `Cli` backend, the `nickel` executable must be built
+/// with its `package-experimental` feature (released binaries aren't, and
+/// ignore the manifest).
 pub fn with_manifest_path(context: Context, path: String) -> Context {
   Context(..context, manifest_path: Some(path))
 }
 
 pub fn manifest_path(context: Context) -> Option(String) {
   context.manifest_path
+}
+
+/// Caches fetched packages in this directory instead of the platform's cache
+/// directory (such as `~/.cache/nickel`), like `--package-cache-dir`.
+pub fn with_package_cache_dir(context: Context, directory: String) -> Context {
+  Context(..context, package_cache_dir: Some(directory))
+}
+
+pub fn package_cache_dir(context: Context) -> Option(String) {
+  context.package_cache_dir
 }
 
 // --- Contracts -------------------------------------------------------------

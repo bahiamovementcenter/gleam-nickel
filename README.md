@@ -43,7 +43,7 @@ nickel.eval(ctx, source.file("server.ncl"))   // same API, no process per call
 | Whole numbers beyond 64 bits | become `Float` | stay exact `Int` |
 | A crash in Nickel | an error value | stops the VM (panics become errors) |
 | `context.with_timeout` | kills the process | returns an error; the evaluation runs on in the background |
-| Package manifests | yes | no |
+| Package manifests (`with_manifest_path`) | only with a `nickel` built with `package-experimental` (released binaries ignore them) | yes |
 | Lazy evaluation (`nickel/lazy`) | no | yes |
 
 Timings are for a small program on Linux x86_64. The whole test suite runs against both
@@ -138,7 +138,8 @@ let production =
 ```
 
 Other settings: `set_env` (for example `NICKEL_IMPORT_PATH`), `focus` (evaluate a single field,
-like `--field`), `with_executable`, `with_manifest_path` (Nickel packages),
+like `--field`), `with_executable`, `with_manifest_path` and `with_package_cache_dir` (Nickel
+packages: `import foo` resolves to the dependencies a `Nickel-pkg.ncl` manifest lists),
 `with_strict_typechecking`, `with_rendered_errors`, and `with_runner`.
 
 ## Contracts
