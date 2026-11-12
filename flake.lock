@@ -68,11 +68,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794477579,
+        "lastModified": 1794478163,
         "narHash": "sha256-wlxWKd9u7E1s43FS1v28vJVJexuFOzp5xUrK+g6HmZY=",
         "owner": "bahiamovementcenter",
         "repo": "rust-nickel",
-        "rev": "360bfae528678ec72adb591ca51d83ba8e8d7d45",
+        "rev": "268127d9cb3431eec6543e61e623541913209da2",
         "type": "github"
       },
       "original": {
