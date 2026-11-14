@@ -16,8 +16,8 @@ import gleam/option.{None, Some}
 import gleam/result
 import gleam/set
 import gleam/string
-import nickel/context.{type Context}
-import nickel/source.{type Source}
+import ncl/context.{type Context}
+import ncl/source.{type Source}
 
 /// An `import` expression found in Nickel source code.
 pub type Import {
@@ -381,14 +381,14 @@ fn dirname(path: String) -> String {
   }
 }
 
-@external(erlang, "nickel_ffi", "read_file")
+@external(erlang, "ncl_ffi", "read_file")
 fn read_file(path: String) -> Result(String, String)
 
-@external(erlang, "nickel_ffi", "is_file")
+@external(erlang, "ncl_ffi", "is_file")
 fn is_file(path: String) -> Bool
 
-@external(erlang, "nickel_ffi", "getenv")
+@external(erlang, "ncl_ffi", "getenv")
 fn getenv(name: String) -> Result(String, Nil)
 
-@external(erlang, "nickel_ffi", "current_directory")
+@external(erlang, "ncl_ffi", "current_directory")
 fn current_directory() -> String

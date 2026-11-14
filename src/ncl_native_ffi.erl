@@ -1,21 +1,21 @@
 %% Calls into the native library: requests are queued on a session's thread,
 %% which replies with a message `{Ref, Reply}`.
--module(nickel_native_ffi).
+-module(ncl_native_ffi).
 -export([load_error/0, core_version/0, new_session/0, call/3]).
 
 load_error() ->
-    case nickel_embed_nif:load_error() of
+    case ncl_nif:load_error() of
         none -> {ok, nil};
         Reason -> {error, Reason}
     end.
 
 core_version() ->
-    try {ok, nickel_embed_nif:core_version()}
+    try {ok, ncl_nif:core_version()}
     catch error:not_loaded -> {error, not_loaded_failure()}
     end.
 
 new_session() ->
-    try nickel_embed_nif:new_session() of
+    try ncl_nif:new_session() of
         {error, Reason} -> {error, {native_failure, Reason}};
         Session -> {ok, Session}
     catch error:not_loaded -> {error, not_loaded_failure()}
@@ -49,7 +49,7 @@ call(Session, Request, {some, Ms}) ->
     end.
 
 send(Session, ReplyTo, Ref, Request) ->
-    try nickel_embed_nif:request(Session, ReplyTo, Ref, Request) of
+    try ncl_nif:request(Session, ReplyTo, Ref, Request) of
         ok -> ok;
         {error, Reason} -> {error, {native_failure, Reason}}
     catch
@@ -59,4 +59,4 @@ send(Session, ReplyTo, Ref, Request) ->
 
 not_loaded_failure() ->
     {native_failure, <<"the native library is not loaded: ",
-                       (nickel_embed_nif:load_error())/binary>>}.
+                       (ncl_nif:load_error())/binary>>}.

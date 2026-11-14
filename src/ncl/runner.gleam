@@ -86,7 +86,7 @@ pub fn describe_error(error: RunError) -> String {
   }
 }
 
-@external(erlang, "nickel_ffi", "run")
+@external(erlang, "ncl_ffi", "run")
 fn ffi_run(
   executable: String,
   arguments: List(String),

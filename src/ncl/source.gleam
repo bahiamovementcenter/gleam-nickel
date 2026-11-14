@@ -1,6 +1,6 @@
 //// Where a Nickel program comes from.
 
-import nickel/value.{type Value}
+import ncl/value.{type Value}
 
 /// A Nickel program to evaluate.
 pub type Source {

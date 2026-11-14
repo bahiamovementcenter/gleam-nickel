@@ -1,5 +1,5 @@
 %% Helpers for the tests.
--module(nickel_test_ffi).
+-module(ncl_test_ffi).
 -export([package_fixture/0]).
 
 %% A fresh directory holding two packages: `app`, whose manifest depends on

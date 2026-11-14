@@ -6,7 +6,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option}
 import gleam/string
-import nickel/runner
+import ncl/runner
 
 /// Everything that can go wrong when using Nickel.
 pub type Error {
@@ -32,7 +32,7 @@ pub type Error {
   TemporaryFileError(reason: String)
   /// The native backend could not do what was asked: its library is not
   /// loaded, the feature needs the command line backend, or a value has no
-  /// Gleam representation. See `nickel/native`.
+  /// Gleam representation. See `ncl/native`.
   NativeError(reason: String)
 }
 

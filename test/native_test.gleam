@@ -1,6 +1,6 @@
 //// Tests of what only the native backend does: lazy evaluation, exact
 //// numbers, enum values. Skipped when the native library isn't loaded, unless
-//// `NICKEL_EMBED_NIF` is set, in which case it must load.
+//// `NCL_NIF` is set, in which case it must load.
 
 import gleam/dict
 import gleam/dynamic/decode
@@ -8,14 +8,14 @@ import gleam/erlang/process
 import gleam/list
 import gleam/option.{None}
 import gleam/string
-import nickel
-import nickel/context
-import nickel/contract
-import nickel/error
-import nickel/lazy
-import nickel/native
-import nickel/source
-import nickel/value
+import ncl
+import ncl/context
+import ncl/contract
+import ncl/error
+import ncl/lazy
+import ncl/native
+import ncl/source
+import ncl/value
 
 fn native_context() -> context.Context {
   context.new() |> context.with_backend(context.Native)
@@ -23,7 +23,7 @@ fn native_context() -> context.Context {
 
 /// Runs a test if the native library is loaded.
 fn with_native(test_body: fn() -> a) -> Nil {
-  case native.load_error(), getenv("NICKEL_EMBED_NIF") {
+  case native.load_error(), getenv("NCL_NIF") {
     Ok(Nil), _ -> {
       test_body()
       Nil
@@ -33,7 +33,7 @@ fn with_native(test_body: fn() -> a) -> Nil {
   }
 }
 
-@external(erlang, "nickel_ffi", "getenv")
+@external(erlang, "ncl_ffi", "getenv")
 fn getenv(name: String) -> Result(String, Nil)
 
 fn load(code: String) -> lazy.Program {
@@ -45,17 +45,14 @@ fn load(code: String) -> lazy.Program {
 
 pub fn exact_big_integer_test() {
   use <- with_native
-  assert nickel.eval(
-      native_context(),
-      source.code("2 * 10000000000000000000000"),
-    )
+  assert ncl.eval(native_context(), source.code("2 * 10000000000000000000000"))
     == Ok(value.Int(20_000_000_000_000_000_000_000))
 }
 
 pub fn core_version_test() {
   use <- with_native
   let assert Ok(version) = native.core_version()
-  assert nickel.version(native_context()) == Ok(version)
+  assert ncl.version(native_context()) == Ok(version)
 }
 
 pub fn inline_contract_test() {
@@ -64,10 +61,10 @@ pub fn inline_contract_test() {
     native_context()
     |> context.apply_contract(contract.code("{ port | std.number.Nat }"))
   let assert Error(error.NickelError(kind: error.ContractViolation, ..)) =
-    nickel.eval(ctx, source.code("{ port = -1 }"))
+    ncl.eval(ctx, source.code("{ port = -1 }"))
 }
 
-@external(erlang, "nickel_test_ffi", "package_fixture")
+@external(erlang, "ncl_test_ffi", "package_fixture")
 fn package_fixture() -> String
 
 pub fn package_manifest_test() {
@@ -78,14 +75,14 @@ pub fn package_manifest_test() {
     |> context.with_working_directory(dir <> "/app")
     |> context.with_manifest_path("Nickel-pkg.ncl")
     |> context.with_package_cache_dir(dir <> "/cache")
-  assert nickel.eval(ctx, source.file("main.ncl"))
+  assert ncl.eval(ctx, source.file("main.ncl"))
     == Ok(value.Record(dict.from_list([#("answer", value.Int(42))])))
   // In-memory code too.
-  assert nickel.eval(ctx, source.code("(import lib).value + 1"))
+  assert ncl.eval(ctx, source.code("(import lib).value + 1"))
     == Ok(value.Int(43))
   // Without the manifest, `lib` is unknown.
   let assert Error(error.NickelError(kind: error.ImportError, ..)) =
-    nickel.eval(
+    ncl.eval(
       native_context() |> context.with_working_directory(dir <> "/app"),
       source.file("main.ncl"),
     )
@@ -97,7 +94,7 @@ pub fn bad_manifest_test() {
     native_context()
     |> context.with_manifest_path(package_fixture() <> "/bad/Nickel-pkg.ncl")
   let assert Error(error.NickelError(kind: error.PackageError, ..)) =
-    nickel.eval(ctx, source.code("1"))
+    ncl.eval(ctx, source.code("1"))
 }
 
 fn one_to_fifty() -> List(Int) {
@@ -111,10 +108,7 @@ pub fn concurrent_evaluations_test() {
   |> list.each(fn(n) {
     process.spawn(fn() {
       let code = string.inspect(n) <> " * 2"
-      process.send(subject, #(
-        n,
-        nickel.eval(native_context(), source.code(code)),
-      ))
+      process.send(subject, #(n, ncl.eval(native_context(), source.code(code))))
     })
   })
   one_to_fifty()

@@ -1,8 +1,8 @@
-name = "nickel"
+name = "ncl"
 version = "0.1.0"
 description = "Gleam bindings to the Nickel configuration language: evaluation, contracts, imports, typed decoding and structured errors."
 licences = ["Apache-2.0"]
-repository = { type = "github", user = "bahiamovementcenter", repo = "gleam-nickel-bindings" }
+repository = { type = "github", user = "bahiamovementcenter", repo = "gleam-ncl" }
 links = [{ title = "Nickel", href = "https://nickel-lang.org" }]
 target = "erlang"
 gleam = ">= 1.14.0"

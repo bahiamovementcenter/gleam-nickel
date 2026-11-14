@@ -5,23 +5,23 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
-import nickel
-import nickel/context
-import nickel/contract
-import nickel/error
-import nickel/imports
-import nickel/metadata
-import nickel/runner
-import nickel/source
-import nickel/syntax
-import nickel/value
+import ncl
+import ncl/context
+import ncl/contract
+import ncl/error
+import ncl/imports
+import ncl/metadata
+import ncl/runner
+import ncl/source
+import ncl/syntax
+import ncl/value
 
 pub fn main() -> Nil {
   gleeunit.main()
 }
 
 /// The suite runs against the command line backend, or against the native
-/// one when `NICKEL_TEST_BACKEND=native` (CI runs both).
+/// one when `NCL_TEST_BACKEND=native` (CI runs both).
 fn new_context() -> context.Context {
   case native() {
     True -> context.new() |> context.with_backend(context.Native)
@@ -30,7 +30,7 @@ fn new_context() -> context.Context {
 }
 
 fn native() -> Bool {
-  getenv("NICKEL_TEST_BACKEND") == Ok("native")
+  getenv("NCL_TEST_BACKEND") == Ok("native")
 }
 
 /// Skips a test that is about running the `nickel` executable.
@@ -41,7 +41,7 @@ fn cli_only(test_body: fn() -> Nil) -> Nil {
   }
 }
 
-@external(erlang, "nickel_ffi", "getenv")
+@external(erlang, "ncl_ffi", "getenv")
 fn getenv(name: String) -> Result(String, Nil)
 
 fn fixtures() -> context.Context {
@@ -54,7 +54,7 @@ fn fixtures() -> context.Context {
 
 pub fn eval_code_test() {
   let assert Ok(result) =
-    nickel.eval(
+    ncl.eval(
       new_context(),
       source.code(
         "{ a = 1 + 2, b = [true, null, \"x\"], c = 1.5, d = { e = 'tag } }",
@@ -71,12 +71,12 @@ pub fn eval_code_test() {
 
 pub fn eval_big_integer_test() {
   let assert Ok(value.Int(n)) =
-    nickel.eval(new_context(), source.code("12345678901234567890 * 1"))
+    ncl.eval(new_context(), source.code("12345678901234567890 * 1"))
   assert n == 12_345_678_901_234_567_890
 }
 
 pub fn eval_file_with_imports_test() {
-  let assert Ok(config) = nickel.eval(fixtures(), source.file("server.ncl"))
+  let assert Ok(config) = ncl.eval(fixtures(), source.file("server.ncl"))
   assert value.get(config, ["server", "port"]) == Ok(value.Int(8080))
   assert value.get(config, ["banner"]) == Ok(value.String("welcome to nickel"))
   assert value.get(config, ["features"])
@@ -85,10 +85,7 @@ pub fn eval_file_with_imports_test() {
 
 pub fn eval_merges_several_files_test() {
   let assert Ok(config) =
-    nickel.eval(
-      fixtures(),
-      source.files(["defaults.ncl", "lib/sub/helper.ncl"]),
-    )
+    ncl.eval(fixtures(), source.files(["defaults.ncl", "lib/sub/helper.ncl"]))
   assert config
     == value.record([
       #("host", value.String("127.0.0.1")),
@@ -109,7 +106,7 @@ fn server_decoder() -> decode.Decoder(Server) {
 
 pub fn eval_as_test() {
   let assert Ok(server) =
-    nickel.eval_as(
+    ncl.eval_as(
       fixtures(),
       source.file("server.ncl"),
       decode.at(["server"], server_decoder()),
@@ -119,7 +116,7 @@ pub fn eval_as_test() {
 
 pub fn eval_as_decode_error_test() {
   let assert Error(error.DecodeError(errors)) =
-    nickel.eval_as(new_context(), source.code("{ port = \"x\" }"), {
+    ncl.eval_as(new_context(), source.code("{ port = \"x\" }"), {
       use port <- decode.field("port", decode.int)
       decode.success(port)
     })
@@ -129,7 +126,7 @@ pub fn eval_as_decode_error_test() {
 }
 
 pub fn value_decode_test() {
-  let assert Ok(config) = nickel.eval(fixtures(), source.file("server.ncl"))
+  let assert Ok(config) = ncl.eval(fixtures(), source.file("server.ncl"))
   assert value.decode(config, decode.at(["server"], server_decoder()))
     == Ok(Server("127.0.0.1", 8080, "development"))
   assert value.decode(
@@ -141,18 +138,18 @@ pub fn value_decode_test() {
 
 pub fn export_formats_test() {
   let program = source.code("{ name = \"demo\", replicas = 3 }")
-  let assert Ok(yaml) = nickel.export(new_context(), program, nickel.Yaml)
+  let assert Ok(yaml) = ncl.export(new_context(), program, ncl.Yaml)
   assert string.contains(yaml, "name: demo")
-  let assert Ok(toml) = nickel.export(new_context(), program, nickel.Toml)
+  let assert Ok(toml) = ncl.export(new_context(), program, ncl.Toml)
   assert string.contains(toml, "replicas = 3")
   let assert Ok(text) =
-    nickel.export(new_context(), source.code("\"a\" ++ \"b\""), nickel.Text)
+    ncl.export(new_context(), source.code("\"a\" ++ \"b\""), ncl.Text)
   assert text == "ab"
 }
 
 pub fn focus_test() {
   let ctx = fixtures() |> context.focus(["server", "host"])
-  assert nickel.eval(ctx, source.file("server.ncl"))
+  assert ncl.eval(ctx, source.file("server.ncl"))
     == Ok(value.String("127.0.0.1"))
 }
 
@@ -167,7 +164,7 @@ pub fn assign_test() {
       syntax.enum_tag("production"),
     )
   let assert Ok(server) =
-    nickel.eval_as(
+    ncl.eval_as(
       ctx,
       source.file("server.ncl"),
       decode.at(["server"], server_decoder()),
@@ -177,7 +174,7 @@ pub fn assign_test() {
 
 pub fn assign_code_test() {
   let ctx = fixtures() |> context.assign_code(["server", "port"], "4000 + 443")
-  let assert Ok(config) = nickel.eval(ctx, source.file("server.ncl"))
+  let assert Ok(config) = ncl.eval(ctx, source.file("server.ncl"))
   assert value.get(config, ["server", "port"]) == Ok(value.Int(4443))
 }
 
@@ -185,7 +182,7 @@ pub fn override_test() {
   let ctx =
     new_context()
     |> context.override(["name"], value.String("with \"quotes\" and %{braces}"))
-  assert nickel.eval(ctx, source.code("{ name = \"fixed\" }"))
+  assert ncl.eval(ctx, source.code("{ name = \"fixed\" }"))
     == Ok(
       value.record([#("name", value.String("with \"quotes\" and %{braces}"))]),
     )
@@ -194,7 +191,7 @@ pub fn override_test() {
 pub fn assignment_violating_contract_test() {
   let ctx = fixtures() |> context.assign(["server", "port"], value.Int(-1))
   let assert Error(error.NickelError(kind: error.ContractViolation, ..)) =
-    nickel.eval(ctx, source.file("server.ncl"))
+    ncl.eval(ctx, source.file("server.ncl"))
 }
 
 pub fn later_assignment_replaces_earlier_test() {
@@ -203,7 +200,7 @@ pub fn later_assignment_replaces_earlier_test() {
     |> context.assign(["a"], value.Int(1))
     |> context.assign(["a"], value.Int(2))
   assert list.length(context.assignments(ctx)) == 1
-  assert nickel.eval(ctx, source.code("{ a | default = 0 }"))
+  assert ncl.eval(ctx, source.code("{ a | default = 0 }"))
     == Ok(value.record([#("a", value.Int(2))]))
 }
 
@@ -212,7 +209,7 @@ pub fn environment_import_path_test() {
     new_context()
     |> context.with_working_directory("test/fixtures")
     |> context.set_env("NICKEL_IMPORT_PATH", "lib/sub")
-  assert nickel.eval(ctx, source.code("(import \"helper.ncl\").name"))
+  assert ncl.eval(ctx, source.code("(import \"helper.ncl\").name"))
     == Ok(value.String("nickel"))
 }
 
@@ -220,13 +217,13 @@ pub fn environment_import_path_test() {
 
 pub fn validate_with_contract_file_test() {
   let assert Ok(_) =
-    nickel.validate(
+    ncl.validate(
       fixtures(),
       source.file("server.ncl"),
       contract.file("schema.ncl"),
     )
   let assert Error(error.NickelError(kind: error.ContractViolation, ..)) =
-    nickel.validate(
+    ncl.validate(
       fixtures(),
       source.code("{ server = { host = 1, port = 80 } }"),
       contract.file("schema.ncl"),
@@ -236,7 +233,7 @@ pub fn validate_with_contract_file_test() {
 pub fn validate_with_inline_contract_test() {
   let schema = contract.code("{ port | std.number.PosNat, host | String }")
   let assert Ok(_) =
-    nickel.validate(
+    ncl.validate(
       new_context(),
       source.code("{ port = 80, host = \"x\" }"),
       schema,
@@ -246,7 +243,7 @@ pub fn validate_with_inline_contract_test() {
     diagnostics: [diagnostic, ..],
     rendered:,
   )) =
-    nickel.validate(
+    ncl.validate(
       new_context(),
       source.code("{ port = 0, host = \"x\" }"),
       schema,
@@ -259,7 +256,7 @@ pub fn inline_contract_can_import_test() {
   let schema = contract.code("import \"schema.ncl\"")
   let ctx = new_context() |> context.with_working_directory("test/fixtures")
   let assert Ok(_) =
-    nickel.validate(
+    ncl.validate(
       ctx,
       source.code("{ server = { host = \"h\", port = 1 } }"),
       schema,
@@ -271,7 +268,7 @@ pub fn validate_value_test() {
     contract.code(
       "{ port | std.number.PosNat, host | String | default = \"localhost\" }",
     )
-  assert nickel.validate_value(
+  assert ncl.validate_value(
       new_context(),
       value.record([#("port", value.Int(80))]),
       schema,
@@ -283,7 +280,7 @@ pub fn validate_value_test() {
       ]),
     )
   let assert Error(error.NickelError(kind: error.ContractViolation, ..)) =
-    nickel.validate_value(
+    ncl.validate_value(
       new_context(),
       value.record([#("port", value.Int(-3))]),
       schema,
@@ -292,27 +289,27 @@ pub fn validate_value_test() {
 
 pub fn context_contracts_apply_to_every_call_test() {
   let ctx = new_context() |> context.apply_contract(contract.code("Number"))
-  let assert Ok(value.Int(1)) = nickel.eval(ctx, source.code("1"))
+  let assert Ok(value.Int(1)) = ncl.eval(ctx, source.code("1"))
   let assert Error(error.NickelError(kind: error.ContractViolation, ..)) =
-    nickel.eval(ctx, source.code("\"one\""))
+    ncl.eval(ctx, source.code("\"one\""))
   let assert Ok(_) =
-    nickel.eval(context.without_contracts(ctx), source.code("\"one\""))
+    ncl.eval(context.without_contracts(ctx), source.code("\"one\""))
 }
 
 // --- Parsing and typechecking ----------------------------------------------
 
 pub fn parse_test() {
-  assert nickel.parse(new_context(), source.code("{ a = undefined_name }"))
+  assert ncl.parse(new_context(), source.code("{ a = undefined_name }"))
     == Ok(Nil)
   let assert Error(error.NickelError(kind: error.ParseError, ..)) =
-    nickel.parse(new_context(), source.code("{ a = 1 + }"))
+    ncl.parse(new_context(), source.code("{ a = 1 + }"))
 }
 
 pub fn typecheck_test() {
-  assert nickel.typecheck(new_context(), source.code("{ a : Number = 1 }"))
+  assert ncl.typecheck(new_context(), source.code("{ a : Number = 1 }"))
     == Ok(Nil)
   let assert Error(error.NickelError(kind: error.TypeError, ..)) =
-    nickel.typecheck(new_context(), source.code("{ a : Number = \"x\" }"))
+    ncl.typecheck(new_context(), source.code("{ a : Number = \"x\" }"))
 }
 
 // --- Errors -----------------------------------------------------------------
@@ -328,41 +325,41 @@ pub fn parse_error_test() {
       ),
     ],
     rendered:,
-  )) = nickel.eval(new_context(), source.code("{ a = 1 + }"))
+  )) = ncl.eval(new_context(), source.code("{ a = 1 + }"))
   assert string.contains(rendered, "<stdin>")
 }
 
 pub fn missing_import_error_test() {
   let assert Error(error.NickelError(kind: error.ImportError, ..)) =
-    nickel.eval(new_context(), source.code("import \"does-not-exist.ncl\""))
+    ncl.eval(new_context(), source.code("import \"does-not-exist.ncl\""))
 }
 
 pub fn evaluation_error_test() {
   let assert Error(err) =
-    nickel.eval(new_context(), source.code("{ a = 1 + \"x\" }"))
+    ncl.eval(new_context(), source.code("{ a = 1 + \"x\" }"))
   let assert error.NickelError(kind: error.EvaluationError, ..) = err
   assert error.messages(err) == ["dynamic type error"]
 }
 
 pub fn unbound_identifier_error_test() {
   let assert Error(error.NickelError(kind: error.UnboundIdentifier, ..)) =
-    nickel.eval(new_context(), source.code("{ a = b }"))
+    ncl.eval(new_context(), source.code("{ a = b }"))
 }
 
 pub fn serialization_error_test() {
   let assert Error(error.NickelError(kind: error.SerializationError, ..)) =
-    nickel.eval(new_context(), source.code("{ f = fun x => x }"))
+    ncl.eval(new_context(), source.code("{ f = fun x => x }"))
 }
 
 pub fn missing_field_error_test() {
   let ctx = new_context() |> context.focus(["nope"])
   let assert Error(error.NickelError(kind: error.MissingField, ..)) =
-    nickel.eval(ctx, source.code("{ a = 1 }"))
+    ncl.eval(ctx, source.code("{ a = 1 }"))
 }
 
 pub fn unrendered_errors_test() {
   let ctx = new_context() |> context.with_rendered_errors(False)
-  let assert Error(err) = nickel.eval(ctx, source.code("{ a = 1 + }"))
+  let assert Error(err) = ncl.eval(ctx, source.code("{ a = 1 + }"))
   let assert error.NickelError(rendered: "", ..) = err
   assert string.starts_with(error.describe(err), "error: unexpected token")
 }
@@ -370,7 +367,7 @@ pub fn unrendered_errors_test() {
 pub fn executable_not_found_test() {
   use <- cli_only
   let ctx = new_context() |> context.with_executable("nickel-does-not-exist")
-  assert nickel.eval(ctx, source.code("1"))
+  assert ncl.eval(ctx, source.code("1"))
     == Error(
       error.ProcessError(runner.ExecutableNotFound("nickel-does-not-exist")),
     )
@@ -379,7 +376,7 @@ pub fn executable_not_found_test() {
 pub fn timeout_test() {
   let ctx = new_context() |> context.with_timeout(300)
   let program = "let rec loop = fun x => loop (x + 1) in loop 0"
-  assert nickel.eval(ctx, source.code(program))
+  assert ncl.eval(ctx, source.code(program))
     == Error(error.ProcessError(runner.TimedOut(300)))
 }
 
@@ -391,7 +388,7 @@ pub fn custom_runner_test() {
     Ok(runner.Output(exit_code: 0, stdout: "{\"stub\": true}", stderr: ""))
   }
   let ctx = new_context() |> context.with_runner(fake)
-  assert nickel.eval(ctx, source.code("anything"))
+  assert ncl.eval(ctx, source.code("anything"))
     == Ok(value.record([#("stub", value.Bool(True))]))
 }
 
@@ -399,19 +396,19 @@ pub fn custom_runner_test() {
 
 pub fn query_test() {
   let assert Ok(meta) =
-    nickel.query(fixtures(), source.file("server.ncl"), ["server", "host"])
+    ncl.query(fixtures(), source.file("server.ncl"), ["server", "host"])
   assert meta.doc == Some("Interface to listen on")
   assert meta.contracts == ["String"]
   assert meta.priority == metadata.DefaultPriority
   let assert Ok(meta) =
-    nickel.query(fixtures(), source.file("server.ncl"), ["server"])
+    ncl.query(fixtures(), source.file("server.ncl"), ["server"])
   assert meta.sub_fields == ["environment", "host", "port"]
   assert meta.doc == None
 }
 
 pub fn query_type_test() {
   let assert Ok(meta) =
-    nickel.query(new_context(), source.code("{ a : Number | force = 1 }"), [
+    ncl.query(new_context(), source.code("{ a : Number | force = 1 }"), [
       "a",
     ])
   assert meta.type_annotation == Some("Number")
@@ -419,7 +416,7 @@ pub fn query_type_test() {
 }
 
 pub fn version_test() {
-  let assert Ok(version) = nickel.version(new_context())
+  let assert Ok(version) = ncl.version(new_context())
   let assert [_, _, _] = string.split(version, ".")
 }
 
@@ -501,7 +498,7 @@ pub fn value_round_trip_through_nickel_test() {
       )
     False -> original
   }
-  assert nickel.eval(new_context(), source.from_value(original)) == Ok(expected)
+  assert ncl.eval(new_context(), source.from_value(original)) == Ok(expected)
 }
 
 pub fn value_json_test() {

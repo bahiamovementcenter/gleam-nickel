@@ -4,9 +4,9 @@
 //// error or an expensive computation in a field you never read still works.
 ////
 //// ```gleam
-//// import nickel/context
-//// import nickel/lazy
-//// import nickel/source
+//// import ncl/context
+//// import ncl/lazy
+//// import ncl/source
 ////
 //// let assert Ok(program) =
 ////   lazy.new(context.new(), source.file("cluster.ncl"))
@@ -16,9 +16,9 @@
 //// let assert Ok(lazy.Number(8080, 1)) = lazy.view(port)
 //// ```
 ////
-//// Requires the native library: see `nickel/native`. The context's backend
+//// Requires the native library: see `ncl/native`. The context's backend
 //// setting is ignored here; its import paths, contracts, assignments, focused
-//// field, working directory and timeout apply as for `nickel.eval`.
+//// field, working directory and timeout apply as for `ncl.eval`.
 ////
 //// Programs and expressions are ordinary values: share them between
 //// processes freely. Each program runs on its own thread, which handles one
@@ -30,11 +30,11 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import nickel/context.{type Context}
-import nickel/error.{type Error}
-import nickel/native
-import nickel/source.{type Source}
-import nickel/value.{type Value}
+import ncl/context.{type Context}
+import ncl/error.{type Error}
+import ncl/native
+import ncl/source.{type Source}
+import ncl/value.{type Value}
 
 /// A Nickel program, loaded and ready to evaluate.
 pub opaque type Program {
@@ -183,7 +183,7 @@ pub fn get(expr: Expr, path: List(String)) -> Result(Expr, Error) {
 }
 
 /// Evaluates an expression fully and converts it to a `Value`, as
-/// `nickel.eval` would: fields marked `not_exported` are left out and enum
+/// `ncl.eval` would: fields marked `not_exported` are left out and enum
 /// tags become strings. Fails on enum variants and functions.
 pub fn to_value(expr: Expr) -> Result(Value, Error) {
   let Expr(program:, handle:) = expr
