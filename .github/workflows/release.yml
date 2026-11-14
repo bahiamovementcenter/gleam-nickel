@@ -62,13 +62,19 @@ jobs:
           pattern: nif-*
           merge-multiple: true
           path: nif
-      - name: Create the release
+      - name: Create the release, or add to it
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           (cd nif && sha256sum *.so > SHA256SUMS)
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --title "$GITHUB_REF_NAME" --generate-notes nif/*.so nif/SHA256SUMS
+          # The release may exist already, when the tag was made by publishing it on GitHub.
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
+              nif/*.so nif/SHA256SUMS
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" --generate-notes nif/*.so nif/SHA256SUMS
+          fi
       - name: Write the checksums into the package
         run: |
           {
