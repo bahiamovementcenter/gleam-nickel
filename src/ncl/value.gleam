@@ -11,7 +11,7 @@ import gleam/json
 import gleam/list
 import gleam/option
 import gleam/string
-import nickel/syntax
+import ncl/syntax
 
 /// An evaluated Nickel value.
 ///

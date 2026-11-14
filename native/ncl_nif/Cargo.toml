@@ -1,0 +1,31 @@
+[package]
+name = "ncl_nif"
+version = "0.1.0"
+description = "Erlang NIF over nickel-embed: the in-process backend of the Gleam package ncl"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/bahiamovementcenter/gleam-ncl"
+publish = false
+
+# Its own workspace: built on its own, not as part of a parent Cargo project.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+# The library only works loaded into the Erlang VM; it is tested from Erlang (test/).
+test = false
+doctest = false
+
+[dependencies]
+# The engine, pinned to a rust-nickel release (see docs/bindings.md there). Bump it with
+# `cargo update -p nickel-embed` after changing the pin.
+nickel-embed = { git = "https://github.com/bahiamovementcenter/rust-nickel", rev = "268127d9cb3431eec6543e61e623541913209da2", features = ["packages"] }
+# HTTPS for git dependencies in package manifests. nickel-embed's `packages` feature doesn't turn
+# it on yet; drop this once the pinned release does.
+gix = { version = "0.84", default-features = false, features = ["blocking-http-transport-reqwest-rust-tls"] }
+rustler = { version = "0.39", default-features = false, features = ["big_integer", "derive", "nif_version_2_16"] }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "debuginfo"

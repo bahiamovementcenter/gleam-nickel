@@ -3,18 +3,12 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    # The native backend's library (nickel-embed-nif).
-    rust-nickel = {
-      url = "github:bahiamovementcenter/rust-nickel/main";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      rust-nickel,
     }:
     let
       systems = [
@@ -25,16 +19,37 @@
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
-      # The native library, where rust-nickel builds it (not x86_64-darwin).
-      nativeLibrary =
+      # The native backend's library, built from native/ncl_nif, as
+      # lib/libncl_nif.so (the VM loads `.so` files on macOS too).
+      nif =
         pkgs:
-        let
-          packages = rust-nickel.packages.${pkgs.stdenv.hostPlatform.system} or { };
-        in
-        if packages ? nickel-embed-nif then
-          "${packages.nickel-embed-nif}/lib/libnickel_embed_nif"
-        else
-          null;
+        pkgs.rustPlatform.buildRustPackage {
+          pname = "ncl_nif";
+          version = "0.1.0";
+          src = ./native/ncl_nif;
+          cargoLock = {
+            lockFile = ./native/ncl_nif/Cargo.lock;
+            # nickel-embed is a git dependency, pinned by revision in Cargo.lock.
+            allowBuiltinFetchGit = true;
+          };
+          # rustls's crypto (aws-lc-sys), for fetching packages over https.
+          # nixpkgs's Cargo setup asks it to link a system AWS-LC
+          # (AWS_LC_SYS_USE_SYSTEM=1), and there is none; the target-specific
+          # variable wins, so it builds its own copy from source.
+          env."AWS_LC_SYS_USE_SYSTEM_${
+            builtins.replaceStrings [ "-" ] [ "_" ] pkgs.stdenv.hostPlatform.rust.rustcTarget
+          }" =
+            "0";
+          # Tested from Erlang: see checks.nif.
+          doCheck = false;
+          postInstall = ''
+            if [ -f $out/lib/libncl_nif.dylib ]; then
+              mv $out/lib/libncl_nif.dylib $out/lib/libncl_nif.so
+            fi
+          '';
+        };
+
+      nativeLibrary = pkgs: "${nif pkgs}/lib/libncl_nif";
 
       # Everything needed to build and test the library.
       toolchain = pkgs: [
@@ -89,9 +104,7 @@
         default = pkgs.mkShell {
           packages = toolchain pkgs;
           # Lets `gleam test` exercise the native backend too.
-          env = nixpkgs.lib.optionalAttrs (nativeLibrary pkgs != null) {
-            NICKEL_EMBED_NIF = nativeLibrary pkgs;
-          };
+          env.NCL_NIF = nativeLibrary pkgs;
         };
       });
 
@@ -114,22 +127,39 @@
         in
         {
           # Runs the test suite against the Nickel version from nixpkgs.
-          test = gleamTest "gleam-nickel-test" { };
+          test = gleamTest "gleam-ncl-test" { };
 
-          format = pkgs.runCommand "gleam-nickel-format" { nativeBuildInputs = [ pkgs.gleam ]; } ''
+          format = pkgs.runCommand "gleam-ncl-format" { nativeBuildInputs = [ pkgs.gleam ]; } ''
             cd ${source}
             gleam format --check src test
             touch $out
           '';
         }
-        // nixpkgs.lib.optionalAttrs (nativeLibrary pkgs != null) {
+        // {
           # The same suite on the native backend, plus the native-only tests.
-          test-native = gleamTest "gleam-nickel-test-native" {
-            NICKEL_EMBED_NIF = nativeLibrary pkgs;
-            NICKEL_TEST_BACKEND = "native";
+          test-native = gleamTest "gleam-ncl-test-native" {
+            NCL_NIF = nativeLibrary pkgs;
+            NCL_TEST_BACKEND = "native";
           };
+
+          # The NIF's own Erlang tests.
+          nif =
+            pkgs.runCommand "ncl-nif-test" { nativeBuildInputs = [ pkgs.beam_minimal.interpreters.erlang_27 ]; }
+              ''
+                cp ${./native/ncl_nif/test}/*.erl .
+                erlc *.erl
+                export HOME=$TMPDIR
+                NCL_NIF=${nativeLibrary pkgs} erl -noshell -pa . -eval \
+                  'case eunit:test(nif_test, [verbose]) of ok -> halt(0); _ -> halt(1) end.'
+                touch $out
+              '';
         }
       );
+
+      packages = forAllSystems (pkgs: {
+        ncl_nif = nif pkgs;
+        default = nif pkgs;
+      });
 
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
     };

@@ -23,10 +23,10 @@
 
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import nickel/contract.{type Contract}
-import nickel/runner.{type Runner}
-import nickel/syntax
-import nickel/value.{type Value}
+import ncl/contract.{type Contract}
+import ncl/runner.{type Runner}
+import ncl/syntax
+import ncl/value.{type Value}
 
 pub opaque type Context {
   Context(
@@ -53,8 +53,8 @@ pub type Backend {
   /// Isolated from the VM and can be timed out, but each call starts a
   /// process.
   Cli
-  /// Run Nickel inside the VM, through the `nickel_embed_nif` native library
-  /// (see `nickel/native`). Much faster per call and needs no `nickel`
+  /// Run Nickel inside the VM, through the `ncl_nif` native library
+  /// (see `ncl/native`). Much faster per call and needs no `nickel`
   /// executable, but a crash in native code stops the VM and a timed out
   /// evaluation keeps running in the background.
   Native
@@ -248,7 +248,7 @@ pub fn contracts(context: Context) -> List(Contract) {
   context.contracts
 }
 
-/// Makes `nickel.typecheck` also typecheck code that has no type
+/// Makes `ncl.typecheck` also typecheck code that has no type
 /// annotations (Nickel's `--strict-typechecking`).
 pub fn with_strict_typechecking(context: Context, enabled: Bool) -> Context {
   Context(..context, strict_typechecking: enabled)
@@ -323,7 +323,7 @@ pub fn assignment_arguments(assignment: Assignment) -> List(String) {
 // --- Field selection -------------------------------------------------------
 
 /// Restricts evaluation, export and queries to a field of the
-/// configuration. Paths given to `nickel.query` are relative to this field.
+/// configuration. Paths given to `ncl.query` are relative to this field.
 pub fn focus(context: Context, path: List(String)) -> Context {
   Context(..context, field: path)
 }

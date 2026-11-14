@@ -3,3 +3,4 @@ erl_crash.dump
 *.beam
 *.ez
 result
+native/ncl_nif/target

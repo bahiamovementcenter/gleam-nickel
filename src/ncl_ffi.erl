@@ -1,4 +1,4 @@
--module(nickel_ffi).
+-module(ncl_ffi).
 
 -export([run/6, write_temp_file/2, delete_file/1, read_file/1, is_file/1,
          getenv/1, current_directory/0]).
@@ -35,7 +35,7 @@ run_in(Dir, Sh, ExePath, Args, Cwd, Env, Stdin, Timeout) ->
     end,
     Script = <<"in=$1; out=$2; err=$3; shift 3; "
                "exec \"$@\" <\"$in\" >\"$out\" 2>\"$err\"">>,
-    ShArgs = [<<"-c">>, Script, <<"gleam_nickel">>,
+    ShArgs = [<<"-c">>, Script, <<"gleam_ncl">>,
               to_bin(In), to_bin(OutPath), to_bin(ErrPath),
               to_bin(ExePath) | Args],
     CdOpt = case Cwd of
@@ -101,7 +101,7 @@ find_executable(Name) ->
     end.
 
 with_temp_dir(Fun) ->
-    Dir = filename:join(temp_root(), "gleam_nickel_" ++ os:getpid() ++ "_"
+    Dir = filename:join(temp_root(), "gleam_ncl_" ++ os:getpid() ++ "_"
                         ++ integer_to_list(erlang:unique_integer([positive]))),
     case file:make_dir(Dir) of
         ok ->
@@ -126,7 +126,7 @@ read_or_empty(Path) ->
 
 %% Write a file with a unique name in the temporary directory.
 write_temp_file(Contents, Extension) ->
-    Path = filename:join(temp_root(), "gleam_nickel_" ++ os:getpid() ++ "_"
+    Path = filename:join(temp_root(), "gleam_ncl_" ++ os:getpid() ++ "_"
                          ++ integer_to_list(erlang:unique_integer([positive]))
                          ++ unicode:characters_to_list(Extension)),
     case file:write_file(Path, Contents) of

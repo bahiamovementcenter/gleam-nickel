@@ -1,0 +1,91 @@
+name: Release
+
+# Pushing a tag vX.Y.Z (matching gleam.toml's version) builds the native library for each
+# platform, attaches it to a GitHub release, writes its checksums into src/ncl_nif_checksums.erl
+# and publishes the package to Hex. `gleam run -m ncl/install` then downloads the library for
+# its platform and checks it against those checksums.
+#
+# Publishing needs a Hex API key in the repository secret HEXPM_API_KEY.
+
+on:
+  push:
+    tags: ["v*"]
+  # A dry run: builds the libraries and keeps them as workflow artifacts.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nif:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, platform: linux-x86_64 }
+          - { os: ubuntu-22.04-arm, platform: linux-aarch64 }
+          - { os: macos-latest, platform: macos-aarch64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+      # Builds the library and runs its Erlang tests against it.
+      - run: sh native/ncl_nif/test/run.sh
+      - name: Package
+        shell: bash
+        run: |
+          lib=native/ncl_nif/target/release/libncl_nif
+          [ -f "$lib.so" ] || cp "$lib.dylib" "$lib.so"
+          cp "$lib.so" "libncl_nif-${{ matrix.platform }}.so"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nif-${{ matrix.platform }}
+          path: libncl_nif-${{ matrix.platform }}.so
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: nif
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag matches gleam.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' gleam.toml)
+          test "v$version" = "$GITHUB_REF_NAME"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: nif-*
+          merge-multiple: true
+          path: nif
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd nif && sha256sum *.so > SHA256SUMS)
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" --generate-notes nif/*.so nif/SHA256SUMS
+      - name: Write the checksums into the package
+        run: |
+          {
+            sed -n '1,/^checksums() ->/p' src/ncl_nif_checksums.erl | sed '$d'
+            echo 'checksums() -> ['
+            sed -E 's/^([0-9a-f]+)  libncl_nif-(.*)\.so$/    {<<"\2">>, <<"\1">>},/' nif/SHA256SUMS \
+              | sed '$ s/,$//'
+            echo '].'
+          } > checksums.erl
+          mv checksums.erl src/ncl_nif_checksums.erl
+          cat src/ncl_nif_checksums.erl
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          gleam-version: "1.19.2"
+          rebar3-version: "3"
+      - run: gleam deps download
+      - run: gleam publish --yes
+        env:
+          HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}

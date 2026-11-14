@@ -6,8 +6,13 @@
 > [rust-nickel](https://github.com/bahiamovementcenter/rust-nickel). It answers section 4.3
 > with option 2 (a thread per program, with messages), builds on `nickel-embed` rather than
 > `nickel-lang`, so typechecking, contract files, overrides, field focus and `query` work
-> natively too, and loads the library from `NICKEL_EMBED_NIF` or `priv/` (distribution,
-> section 4.1, is still open). The rest of this document is kept for its analysis.
+> natively too, and loads the library from `NICKEL_EMBED_NIF` or `priv/`. The rest of this
+> document is kept for its analysis.
+>
+> **2026-11-14:** the package is now `ncl` (gleam-ncl), the NIF crate lives in this
+> repository as `native/ncl_nif`, and distribution (section 4.1) is settled: each release
+> attaches a prebuilt library per platform, which `gleam run -m ncl/install` downloads and
+> checks against checksums published with the package.
 
 This document is for whoever starts a new repository, `gleam-nickel-embedded`, which
 embeds the Nickel interpreter in Gleam applications on the Erlang VM. Nickel's own Go

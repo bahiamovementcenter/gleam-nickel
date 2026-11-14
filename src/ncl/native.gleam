@@ -1,18 +1,25 @@
 //// The native backend: Nickel running inside the Erlang VM.
 ////
 //// Select it with `context.with_backend(context.Native)`; every function of
-//// the `nickel` module then works without the `nickel` executable, and
-//// `nickel/lazy` gives on-demand access to values. The interpreter comes from
-//// the `nickel_embed_nif` library, built from the `nickel-embed-nif` crate of
-//// [rust-nickel](https://github.com/bahiamovementcenter/rust-nickel):
+//// the `ncl` module then works without the `nickel` executable, and
+//// `ncl/lazy` gives on-demand access to values. The interpreter comes from
+//// the `ncl_nif` library, built from this repository's `native/ncl_nif`
+//// crate over [nickel-embed](https://github.com/bahiamovementcenter/rust-nickel).
+//// Install the prebuilt one for this version once:
 ////
 //// ```sh
-//// cargo build --release -p nickel-embed-nif
-//// export NICKEL_EMBED_NIF=$PWD/target/release/libnickel_embed_nif.so
+//// gleam run -m ncl/install
 //// ```
 ////
-//// The library is looked for at `$NICKEL_EMBED_NIF`, then as
-//// `priv/libnickel_embed_nif.so` in this package. On macOS, rename the
+//// or build it yourself:
+////
+//// ```sh
+//// cargo build --release --manifest-path native/ncl_nif/Cargo.toml
+//// export NCL_NIF=$PWD/native/ncl_nif/target/release/libncl_nif.so
+//// ```
+////
+//// The library is looked for at `$NCL_NIF`, then as `priv/libncl_nif.so` in
+//// this package, then where `ncl/install` puts it. On macOS, rename the
 //// `.dylib` that Cargo builds to `.so`.
 ////
 //// Each evaluation runs on its own operating system thread, so it never
@@ -26,20 +33,20 @@
 //// - Package manifests (`context.with_manifest_path`) always work: the
 ////   library includes Nickel's package manager, which released `nickel`
 ////   executables leave out.
-//// - `nickel.version` returns the version of `nickel-lang-core` linked in,
+//// - `ncl.version` returns the version of `nickel-lang-core` linked in,
 ////   not of a Nickel release.
 
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import nickel/context.{type Context}
-import nickel/contract
-import nickel/error.{type Diagnostic, type Error, type ErrorKind}
-import nickel/metadata.{type FieldMetadata}
-import nickel/runner
-import nickel/source.{type Source}
-import nickel/value.{type Value}
+import ncl/context.{type Context}
+import ncl/contract
+import ncl/error.{type Diagnostic, type Error, type ErrorKind}
+import ncl/metadata.{type FieldMetadata}
+import ncl/runner
+import ncl/source.{type Source}
+import ncl/value.{type Value}
 
 /// Whether the native library is loaded, and if not, why.
 pub fn load_error() -> Result(Nil, String) {
@@ -62,7 +69,7 @@ pub fn core_version() -> Result(String, Error) {
 /// It stops once the session and its expressions are garbage-collected.
 pub type Session
 
-/// An expression in a session. Internal: use `nickel/lazy`.
+/// An expression in a session. Internal: use `ncl/lazy`.
 pub type Handle
 
 @internal
@@ -367,59 +374,59 @@ pub fn call_metadata(
   |> result.map_error(to_error(_, render))
 }
 
-@external(erlang, "nickel_native_ffi", "load_error")
+@external(erlang, "ncl_native_ffi", "load_error")
 fn ffi_load_error() -> Result(Nil, String)
 
-@external(erlang, "nickel_native_ffi", "core_version")
+@external(erlang, "ncl_native_ffi", "core_version")
 fn ffi_core_version() -> Result(String, Failure)
 
-@external(erlang, "nickel_native_ffi", "new_session")
+@external(erlang, "ncl_native_ffi", "new_session")
 fn ffi_new_session() -> Result(Session, Failure)
 
-@external(erlang, "nickel_native_ffi", "call")
+@external(erlang, "ncl_native_ffi", "call")
 fn ffi_call_nil(
   session: Session,
   request: Request,
   timeout: Option(Int),
 ) -> Result(Nil, Failure)
 
-@external(erlang, "nickel_native_ffi", "call")
+@external(erlang, "ncl_native_ffi", "call")
 fn ffi_call_handle(
   session: Session,
   request: Request,
   timeout: Option(Int),
 ) -> Result(Handle, Failure)
 
-@external(erlang, "nickel_native_ffi", "call")
+@external(erlang, "ncl_native_ffi", "call")
 fn ffi_call_value(
   session: Session,
   request: Request,
   timeout: Option(Int),
 ) -> Result(Value, Failure)
 
-@external(erlang, "nickel_native_ffi", "call")
+@external(erlang, "ncl_native_ffi", "call")
 fn ffi_call_string(
   session: Session,
   request: Request,
   timeout: Option(Int),
 ) -> Result(String, Failure)
 
-@external(erlang, "nickel_native_ffi", "call")
+@external(erlang, "ncl_native_ffi", "call")
 fn ffi_call_view(
   session: Session,
   request: Request,
   timeout: Option(Int),
 ) -> Result(RawView, Failure)
 
-@external(erlang, "nickel_native_ffi", "call")
+@external(erlang, "ncl_native_ffi", "call")
 fn ffi_call_metadata(
   session: Session,
   request: Request,
   timeout: Option(Int),
 ) -> Result(FieldMetadata, Failure)
 
-@external(erlang, "nickel_ffi", "current_directory")
+@external(erlang, "ncl_ffi", "current_directory")
 fn current_directory() -> String
 
-@external(erlang, "nickel_ffi", "getenv")
+@external(erlang, "ncl_ffi", "getenv")
 fn getenv(name: String) -> Result(String, Nil)

@@ -1,19 +1,19 @@
 //// Bindings to the [Nickel](https://nickel-lang.org) configuration language.
 ////
-//// Every operation takes a `Context` (see `nickel/context`) describing how
-//// Nickel should run, and a `Source` (see `nickel/source`) describing the
+//// Every operation takes a `Context` (see `ncl/context`) describing how
+//// Nickel should run, and a `Source` (see `ncl/source`) describing the
 //// program:
 ////
 //// ```gleam
 //// import gleam/dynamic/decode
-//// import nickel
-//// import nickel/context
-//// import nickel/source
+//// import ncl
+//// import ncl/context
+//// import ncl/source
 ////
 //// pub fn main() {
 ////   let ctx = context.new()
 ////   let assert Ok(port) =
-////     nickel.eval_as(
+////     ncl.eval_as(
 ////       ctx,
 ////       source.code("{ server = { port = 8000 + 80 } }"),
 ////       decode.at(["server", "port"], decode.int),
@@ -25,7 +25,7 @@
 //// By default the bindings drive the `nickel` command line program, which
 //// must be installed (version 1.5 or later; tested with 1.14). With
 //// `context.with_backend(context.Native)` they run Nickel inside the VM
-//// instead: see `nickel/native`.
+//// instead: see `ncl/native`.
 
 import gleam/bool
 import gleam/dynamic/decode
@@ -34,15 +34,15 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import nickel/context.{type Context}
-import nickel/contract.{type Contract}
-import nickel/error.{type Error}
-import nickel/metadata.{type FieldMetadata}
-import nickel/native
-import nickel/runner
-import nickel/source.{type Source}
-import nickel/syntax
-import nickel/value.{type Value}
+import ncl/context.{type Context}
+import ncl/contract.{type Contract}
+import ncl/error.{type Error}
+import ncl/metadata.{type FieldMetadata}
+import ncl/native
+import ncl/runner
+import ncl/source.{type Source}
+import ncl/syntax
+import ncl/value.{type Value}
 
 /// Serialization formats supported by `export`.
 pub type Format {
@@ -104,7 +104,7 @@ pub fn eval(context: Context, program: Source) -> Result(Value, Error) {
 ///   decode.success(Server(host:, port:))
 /// }
 ///
-/// nickel.eval_as(ctx, source.file("server.ncl"), server_decoder)
+/// ncl.eval_as(ctx, source.file("server.ncl"), server_decoder)
 /// ```
 pub fn eval_as(
   context: Context,
@@ -203,7 +203,7 @@ pub fn validate(
 ///
 /// ```gleam
 /// let schema = contract.code("{ port | std.number.PosNat, host | String }")
-/// nickel.validate_value(ctx, value.record([#("port", value.Int(-1))]), schema)
+/// ncl.validate_value(ctx, value.record([#("port", value.Int(-1))]), schema)
 /// // -> Error(NickelError(kind: ContractViolation, ..))
 /// ```
 pub fn validate_value(
@@ -493,11 +493,11 @@ fn json_error(error: json.DecodeError, output: String) -> Error {
   }
 }
 
-@external(erlang, "nickel_ffi", "write_temp_file")
+@external(erlang, "ncl_ffi", "write_temp_file")
 fn write_temp_file(
   contents: String,
   extension: String,
 ) -> Result(String, String)
 
-@external(erlang, "nickel_ffi", "delete_file")
+@external(erlang, "ncl_ffi", "delete_file")
 fn delete_file(path: String) -> Nil
